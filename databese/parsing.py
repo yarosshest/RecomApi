@@ -9,12 +9,12 @@ def parse_object(x):
                                photo=x['images'][0],
                                description=x['description'],
                                price=x['actual_price'])
+        for i in x['product_details']:
+            pairs = list(i.items())[0]
+            oh.add_attribute(id_ob, pairs[0], "", pairs[1], "")
     except:
         print(x['title'])
         return
-    for i in x['product_details']:
-        pairs = list(i.items())[0]
-        oh.add_attribute(id_ob, pairs[0], "", pairs[1], "")
 
 
 if __name__ == '__main__':

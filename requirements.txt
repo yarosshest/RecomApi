@@ -1,3 +1,10 @@
 psycopg2
 sqlalchemy
 kaggle
+tensorflow_hub
+tensorflow
+matplotlib
+pandas
+seaborn
+tqdm
+asyncpg
