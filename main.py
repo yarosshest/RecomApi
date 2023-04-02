@@ -1,22 +1,18 @@
-n = 5
-from databese.db import ObjectHandler
+import asyncio
 
-def fn(i, j):
-    return str(i) + str(j)
+async def my_coroutine(semaphore, i):
+    async with semaphore:
+        print(i)
 
+async def main():
+    # Create a semaphore with a limit of 5 coroutines
+    semaphore = asyncio.Semaphore(100)
 
-Matrix = [[fn(i, j) for j in range(n)] for i in range(n)]
+    # Create a list of coroutines
+    coroutines = [my_coroutine(semaphore, i) for i in range(10000)]
 
-for i in range(n):
-    print(Matrix[i])
+    # Run the coroutines concurrently, limiting to 5 at a time
+    await asyncio.gather(*coroutines)
 
-for i in range(n):
-    for j in range(n):
-        if i > j:
-            print(Matrix[i][j])
-
-
-hand = ObjectHandler
-ids, des = [[x, y] for x, y in hand.get_all_description()]
-print(ids)
-print(des)
+# Run the main coroutine
+asyncio.run(main())

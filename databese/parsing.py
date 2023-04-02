@@ -1,6 +1,7 @@
 import json
 from db import ObjectHandler
 
+
 def parse_object(x):
     oh = ObjectHandler()
     try:
@@ -13,7 +14,6 @@ def parse_object(x):
             pairs = list(i.items())[0]
             oh.add_attribute(id_ob, pairs[0], "", pairs[1], "")
     except:
-        print(x['title'])
         return
 
 

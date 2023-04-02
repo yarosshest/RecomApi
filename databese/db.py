@@ -120,12 +120,12 @@ class ObjectHandler(object):
 
     @Session
     def add_distance(self, session, product_f_id, product_s_id, distance):
-        dist = session.query(Distance).filter(or_(
-            and_(Distance.product_f_id == product_f_id , Distance.product_s_id == product_s_id),
-            and_(Distance.product_s_id == product_f_id , Distance.product_f_id == product_s_id))).first()
-        if dist is not None:
-            session.delete(dist)
-            session.commit()
+        # dist = session.query(Distance).filter(or_(
+        #     and_(Distance.product_f_id == product_f_id, Distance.product_s_id == product_s_id),
+        #     and_(Distance.product_s_id == product_f_id, Distance.product_f_id == product_s_id))).first()
+        # if dist is not None:
+        #     session.delete(dist)
+        #     session.commit()
 
         dist = Distance(product_f_id, product_s_id, distance)
         session.add(dist)
