@@ -100,25 +100,34 @@ class Rate(Base):
         self.rate = rate
 
 
+def async_to_tread(fun):
+    def wrapper(*args, **kwargs):
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        loop.run_until_complete(fun(*args, **kwargs))
+        loop.close()
+
+    return wrapper
+
+
 def Session(fun):
     async def wrapper(self, *args):
         async with self.async_sessionmaker() as session:
             async with session.begin():
                 result = await fun(self, session, *args)
                 await session.commit()
-                await session.close_all()
         return result
 
     return wrapper
 
 
 class asyncHandler:
-    def __init__(self, pool_size):
+    def __init__(self):
         self.engine = create_async_engine(
             "postgresql+asyncpg://postgres:postgres@localhost:5432/recomapi_as",
             echo=False,
         )
-        self.async_sessionmaker = async_sessionmaker(self.engine, pool_size=pool_size, expire_on_commit=True)
+        self.async_sessionmaker = async_sessionmaker(self.engine, expire_on_commit=True)
 
     async def init_db(self):
         async with self.engine.begin() as conn:
@@ -127,12 +136,26 @@ class asyncHandler:
         await self.engine.dispose()
 
     @Session
-    async def add_product(self, session,category, name, photo, description, price) -> int:
-        prod = Product(category, name, photo, description, price)
+    async def add_product(self, session, product, attributes) -> None:
+        prod = Product(product[0], product[1], product[2], product[3], product[4])
         session.add(prod)
         await session.flush()
         p_id = prod.id
-        return p_id
+        for i in attributes:
+            attribute = Attribute(p_id, i[0], i[1], i[2], i[3])
+            session.add(attribute)
+
+    @Session
+    async def add_some_products(self, session, products, attributes) -> None:
+        for i in products:
+            prod = Product(i[0], i[1], i[2], i[3], i[4])
+            session.add(prod)
+            await session.flush()
+            p_id = prod.id
+            for j in attributes:
+                if i[0] == j[0]:
+                    attribute = Attribute(p_id, j[1], j[2], j[3], j[4])
+                    session.add(attribute)
 
     @Session
     async def add_attribute(self, session, product_id, name, value_type, value, value_description) -> None:
