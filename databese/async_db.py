@@ -5,7 +5,7 @@ import datetime
 import time
 from typing import List
 
-from sqlalchemy import ForeignKey, or_, and_
+from sqlalchemy import ForeignKey, or_, and_, NullPool
 from sqlalchemy import func
 from sqlalchemy import select
 from sqlalchemy import Table
@@ -112,22 +112,27 @@ def async_to_tread(fun):
 
 def Session(fun):
     async def wrapper(self, *args):
-        async with self.async_sessionmaker() as session:
+        engine = create_async_engine(
+            "postgresql+asyncpg://postgres:postgres@localhost:5432/recomapi_as",
+            echo=False,
+        )
+        async with async_sessionmaker(engine, expire_on_commit=True)() as session:
             async with session.begin():
                 result = await fun(self, session, *args)
                 await session.commit()
+                await engine.dispose()
         return result
 
     return wrapper
 
 
 class asyncHandler:
-    def __init__(self):
-        self.engine = create_async_engine(
-            "postgresql+asyncpg://postgres:postgres@localhost:5432/recomapi_as",
-            echo=False,
-        )
-        self.async_sessionmaker = async_sessionmaker(self.engine, expire_on_commit=True)
+    # def __init__(self):
+    #     self.engine = create_async_engine(
+    #         "postgresql+asyncpg://postgres:postgres@localhost:5432/recomapi_as",
+    #         echo=False,
+    #     )
+    #     self.async_sessionmaker = async_sessionmaker(self.engine, expire_on_commit=True)
 
     async def init_db(self):
         async with self.engine.begin() as conn:
