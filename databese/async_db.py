@@ -18,6 +18,7 @@ from sqlalchemy.orm import Mapped
 from sqlalchemy.orm import mapped_column
 from sqlalchemy.orm import relationship
 from sqlalchemy.orm import selectinload
+from tqdm import tqdm
 
 
 class Base(DeclarativeBase):
@@ -135,10 +136,14 @@ class asyncHandler:
     #     self.async_sessionmaker = async_sessionmaker(self.engine, expire_on_commit=True)
 
     async def init_db(self):
-        async with self.engine.begin() as conn:
+        engine = create_async_engine(
+            "postgresql+asyncpg://postgres:postgres@localhost:5432/recomapi_as",
+            echo=False,
+        )
+        async with engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
 
-        await self.engine.dispose()
+        await engine.dispose()
 
     @Session
     async def add_product(self, session, product, attributes) -> None:
@@ -151,16 +156,15 @@ class asyncHandler:
             session.add(attribute)
 
     @Session
-    async def add_some_products(self, session, products, attributes) -> None:
-        for i in products:
-            prod = Product(i[0], i[1], i[2], i[3], i[4])
+    async def add_some_products(self, session, products) -> None:
+        for i in tqdm(products):
+            prod = Product(i[0][0], i[0][1], i[0][2], i[0][3], i[0][4])
             session.add(prod)
             await session.flush()
             p_id = prod.id
-            for j in attributes:
-                if i[0] == j[0]:
-                    attribute = Attribute(p_id, j[1], j[2], j[3], j[4])
-                    session.add(attribute)
+            for j in i[1]:
+                attribute = Attribute(p_id, j[0], j[1], j[2], j[3])
+                session.add(attribute)
 
     @Session
     async def add_attribute(self, session, product_id, name, value_type, value, value_description) -> None:
