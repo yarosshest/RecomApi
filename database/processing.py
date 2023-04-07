@@ -10,14 +10,14 @@ import pandas as pd
 import re
 import seaborn as sns
 from tqdm import tqdm
-from db import ObjectHandler
+# from db import ObjectHandler
+from async_db import asyncHandler
 
-
-def get_data(h):
+async def get_data(h):
     ids = []
     des = []
 
-    data = h.get_all_description()
+    data = await h.get_all_description()
     for i in data:
         ids.append(i[0])
         des.append(i[1])
@@ -32,8 +32,9 @@ def embed(input):
     return model(input)
 
 
-def calc_dist(h):
-    dt = get_data(h)
+async def calc_dist(h):
+    dt = await get_data(h)
+    print("descriptions load from bd")
     ids = dt[0]
     des = dt[1]
     print("processing descriptions start")
@@ -42,18 +43,30 @@ def calc_dist(h):
 
     print("collecting distances")
     corr = np.inner(dist, dist)
-
+    distances = []
     for i in tqdm(range(len(des))):
-        distances = []
         for j in range(len(des)):
             if i > j:
                 distances.append([ids[i], ids[j], corr[i][j].item()])
-        h.add_some_distances(distances)
+    await h.add_some_distances(distances)
+
+async def calc_vectors(h):
+    dt = await get_data(h)
+    print("descriptions load from bd")
+    ids = dt[0]
+    des = dt[1]
+    print("processing descriptions start")
+    vec = embed(des)
+    print("processing descriptions end")
+    vectors = []
+    for i in tqdm(range(len(ids))):
+        vectors.append([ids[i], vec[i]])
+    await h.add_some_vectors(vectors)
 
 
 if __name__ == "__main__":
-    h = ObjectHandler()
-    calc_dist(h)
+    h = asyncHandler()
+    asyncio.run(calc_vectors(h))
 
 # for i in tqdm(range(len(des))):
 #     distances = []

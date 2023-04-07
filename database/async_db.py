@@ -3,9 +3,12 @@ import tracemalloc
 import asyncio
 import datetime
 import time
+import pickle
+
+import numpy as np
 from typing import List
 
-from sqlalchemy import ForeignKey, or_, and_, NullPool
+from sqlalchemy import ForeignKey, or_, and_, NullPool, PickleType
 from sqlalchemy import func
 from sqlalchemy import select
 from sqlalchemy import Table
@@ -30,6 +33,8 @@ class Product(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     distance: Mapped[List[Distance]] = relationship()
     attribute: Mapped[List[Attribute]] = relationship()
+    vector: Mapped[Vector] = relationship(back_populates="product")
+    rates: Mapped[List[Rate]] = relationship(back_populates="product")
     category: Mapped[str]
     name: Mapped[str]
     photo: Mapped[str]
@@ -57,6 +62,18 @@ class Distance(Base):
         self.distance = distance
 
 
+class Vector(Base):
+    __tablename__ = 'vector_table'
+    id: Mapped[int] = mapped_column(primary_key=True)
+    product_id: Mapped[int] = mapped_column(ForeignKey("product_table.id"))
+    product: Mapped[Product] = relationship(back_populates="vector")
+    vector = Column(PickleType)
+
+    def __init__(self, product_id, vector):
+        self.product_id = product_id
+        self.vector = vector
+
+
 class Attribute(Base):
     __tablename__ = 'attribute_table'
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -77,14 +94,12 @@ class Attribute(Base):
 class User(Base):
     __tablename__ = 'user_table'
     id: Mapped[int] = mapped_column(primary_key=True)
-    rate: Mapped[List[Rate]] = relationship()
+    rates: Mapped[List[Rate]] = relationship(back_populates="user")
     name: Mapped[str]
-    email: Mapped[str]
     password: Mapped[str]
 
-    def __init__(self, name, email, password):
+    def __init__(self, name, password):
         self.name = name
-        self.email = email
         self.password = password
 
 
@@ -92,8 +107,9 @@ class Rate(Base):
     __tablename__ = "rate_table"
     user_id: Mapped[int] = mapped_column(ForeignKey("user_table.id"), primary_key=True)
     right_id: Mapped[int] = mapped_column(ForeignKey("product_table.id"), primary_key=True)
-    rate: Mapped[str]
-    child: Mapped["Product"] = relationship()
+    rate: Mapped[bool]
+    product: Mapped[Product] = relationship(back_populates="rates")
+    user: Mapped[User] = relationship(back_populates="rates")
 
     def __init__(self, user_id, product_id, rate):
         self.user_id = user_id
@@ -114,31 +130,32 @@ def async_to_tread(fun):
 def Session(fun):
     async def wrapper(self, *args):
         engine = create_async_engine(
-            "postgresql+asyncpg://postgres:postgres@localhost:5432/recomapi_as",
+            "postgresql+asyncpg://postgres:postgres@localhost:5433/recomapi_as",
             echo=False,
+            poolclass=NullPool,
         )
         async with async_sessionmaker(engine, expire_on_commit=True)() as session:
             async with session.begin():
                 result = await fun(self, session, *args)
                 await session.commit()
-                await engine.dispose()
         return result
 
     return wrapper
 
-
 class asyncHandler:
     # def __init__(self):
     #     self.engine = create_async_engine(
-    #         "postgresql+asyncpg://postgres:postgres@localhost:5432/recomapi_as",
+    #         "postgresql+asyncpg://postgres:postgres@localhost:5433/recomapi_as",
     #         echo=False,
+    #         poolclass=NullPool,
     #     )
     #     self.async_sessionmaker = async_sessionmaker(self.engine, expire_on_commit=True)
 
     async def init_db(self):
         engine = create_async_engine(
-            "postgresql+asyncpg://postgres:postgres@localhost:5432/recomapi_as",
+            "postgresql+asyncpg://postgres:postgres@localhost:5433/recomapi_as",
             echo=False,
+            poolclass=NullPool,
         )
         async with engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
@@ -177,14 +194,80 @@ class asyncHandler:
         session.add(dist)
 
     @Session
+    async def add_some_distances(self, session, distances):
+        for i in distances:
+            dist = Distance(i[0], i[1], i[2])
+            session.add(dist)
+
+    @Session
+    async def get_all_vectors(self, session):
+        result = await session.execute(select(Product))
+        vectors = result.scalars().all()
+        res = []
+
+        for i in vectors:
+            res.append(pickle.loads(i.vector))
+
+        return res
+
+    @Session
+    async def add_some_vectors(self, session, vectors):
+        for i in vectors:
+            vector = Vector(i[0], pickle.dumps(i[1]))
+            session.add(vector)
+
+    @Session
     async def get_all_description(self, session) -> list:
         result = await session.execute(select(Product))
-        products = result.all()
+        products = result.scalars().all()
         res = []
-        for prod in products:
+        for prod in tqdm(products):
             if prod.description != '':
                 res.append([prod.id, prod.description])
         return res
+
+    @Session
+    async def add_user(self, session, name, password):
+        user = User(name, password)
+        session.add(user)
+
+    @Session
+    async def rate_product(self, session, user_id, product_id, rate):
+        rate = Rate(user_id, product_id, rate)
+        session.add(rate)
+
+    @Session
+    async def get_nearest_for_user_by_median(self, session, user_id) -> int:
+
+
+        q = session.query(Vector, Product, User, Rate).filter(Rate.user.id == user_id).filter(Rate.rate == True).all()
+        query_vectors = await session.execute(q)
+        vectors_t = []
+        for i in query_vectors:
+            vectors_t.append(pickle.loads(i.vector))
+
+        q = session.query(Vector, Product, User, Rate).filter(Rate.user.id == user_id).filter(Rate.rate == False).all()
+        query_vectors = await session.execute(q)
+        vectors_f = []
+
+
+        for i in query_vectors:
+            vectors_f.append(pickle.loads(i.vector))
+
+        vectors_t = np.array(vectors_t)
+        vectors_f = np.array(vectors_f)
+
+        vectors = np.array(await self.get_all_vectors())
+
+        median_t = np.median(vectors_t, axis=0)
+        dist_t = np.inner(median_t, vectors[1])
+
+        median_f = np.median(vectors_f, axis=0)
+        dist_f = np.inner(median_f, vectors[1])
+
+        dist = vectors_t - vectors_f
+        id = vectors[np.argmax(dist)]
+        return id
 
 
 if __name__ == "__main__":
