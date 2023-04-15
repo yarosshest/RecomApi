@@ -6,7 +6,7 @@ import time
 import pickle
 
 import numpy as np
-from typing import List
+from typing import List, Any
 
 from sqlalchemy import ForeignKey, or_, and_, NullPool, PickleType
 from sqlalchemy import func
@@ -20,8 +20,13 @@ from sqlalchemy.orm import DeclarativeBase
 from sqlalchemy.orm import Mapped
 from sqlalchemy.orm import mapped_column
 from sqlalchemy.orm import relationship
+from sqlalchemy import and_
 from sqlalchemy.orm import selectinload
 from tqdm import tqdm
+
+from random import choice
+
+BDCONNECTION = "postgresql+asyncpg://postgres:postgres@localhost:5432/recomapi_as"
 
 
 class Base(DeclarativeBase):
@@ -35,18 +40,14 @@ class Product(Base):
     attribute: Mapped[List[Attribute]] = relationship()
     vector: Mapped[Vector] = relationship(back_populates="product")
     rates: Mapped[List[Rate]] = relationship(back_populates="product")
-    category: Mapped[str]
     name: Mapped[str]
     photo: Mapped[str]
     description: Mapped[str]
-    price: Mapped[str]
 
-    def __init__(self, category, name, photo, description, price):
-        self.category = category
+    def __init__(self, name, photo, description):
         self.name = name
         self.photo = photo
         self.description = description
-        self.price = price
 
 
 class Distance(Base):
@@ -79,9 +80,9 @@ class Attribute(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     product_id: Mapped[int] = mapped_column(ForeignKey("product_table.id"))
     name: Mapped[str]
-    value_type: Mapped[str]
+    value_type: Mapped[str] = mapped_column(nullable=True)
     value: Mapped[str]
-    value_description: Mapped[str]
+    value_description: Mapped[str] = mapped_column(nullable=True)
 
     def __init__(self, product_id, name, value_type, value, value_description):
         self.product_id = product_id
@@ -106,7 +107,7 @@ class User(Base):
 class Rate(Base):
     __tablename__ = "rate_table"
     user_id: Mapped[int] = mapped_column(ForeignKey("user_table.id"), primary_key=True)
-    right_id: Mapped[int] = mapped_column(ForeignKey("product_table.id"), primary_key=True)
+    product_id: Mapped[int] = mapped_column(ForeignKey("product_table.id"), primary_key=True)
     rate: Mapped[bool]
     product: Mapped[Product] = relationship(back_populates="rates")
     user: Mapped[User] = relationship(back_populates="rates")
@@ -130,7 +131,7 @@ def async_to_tread(fun):
 def Session(fun):
     async def wrapper(self, *args):
         engine = create_async_engine(
-            "postgresql+asyncpg://postgres:postgres@localhost:5433/recomapi_as",
+            BDCONNECTION,
             echo=False,
             poolclass=NullPool,
         )
@@ -142,18 +143,11 @@ def Session(fun):
 
     return wrapper
 
-class asyncHandler:
-    # def __init__(self):
-    #     self.engine = create_async_engine(
-    #         "postgresql+asyncpg://postgres:postgres@localhost:5433/recomapi_as",
-    #         echo=False,
-    #         poolclass=NullPool,
-    #     )
-    #     self.async_sessionmaker = async_sessionmaker(self.engine, expire_on_commit=True)
 
+class asyncHandler:
     async def init_db(self):
         engine = create_async_engine(
-            "postgresql+asyncpg://postgres:postgres@localhost:5433/recomapi_as",
+            BDCONNECTION,
             echo=False,
             poolclass=NullPool,
         )
@@ -164,23 +158,23 @@ class asyncHandler:
 
     @Session
     async def add_product(self, session, product, attributes) -> None:
-        prod = Product(product[0], product[1], product[2], product[3], product[4])
+        prod = Product(product[0], product[1], product[2])
         session.add(prod)
         await session.flush()
         p_id = prod.id
         for i in attributes:
-            attribute = Attribute(p_id, i[0], i[1], i[2], i[3])
+            attribute = Attribute(p_id, i[0], None, str(i[1]), None)
             session.add(attribute)
 
     @Session
     async def add_some_products(self, session, products) -> None:
+        print("adding products in db")
         for i in tqdm(products):
-            prod = Product(i[0][0], i[0][1], i[0][2], i[0][3], i[0][4])
+            prod = Product(i[0][0], i[0][1], i[0][2])
             session.add(prod)
             await session.flush()
-            p_id = prod.id
             for j in i[1]:
-                attribute = Attribute(p_id, j[0], j[1], j[2], j[3])
+                attribute = Attribute(prod.id, j[0], None, str(j[1]), None)
                 session.add(attribute)
 
     @Session
@@ -201,12 +195,26 @@ class asyncHandler:
 
     @Session
     async def get_all_vectors(self, session):
-        result = await session.execute(select(Product))
+        result = await session.execute(select(Vector))
         vectors = result.scalars().all()
-        res = []
+        res = [[], []]
 
         for i in vectors:
-            res.append(pickle.loads(i.vector))
+            res[0].append(i.id)
+            res[1].append(pickle.loads(i.vector))
+
+        return res
+
+    @Session
+    async def get_vectors_without(self, session, ids):
+        result = await session.execute(select(Vector))
+        vectors = result.scalars().all()
+        res = [[], []]
+
+        for i in vectors:
+            if i.id not in ids:
+                res[0].append(i.id)
+                res[1].append(pickle.loads(i.vector))
 
         return res
 
@@ -228,46 +236,118 @@ class asyncHandler:
 
     @Session
     async def add_user(self, session, name, password):
-        user = User(name, password)
-        session.add(user)
+        result = await session.execute(select(User).filter(User.name == name))
+        result = result.scalars().all()
+        if result:
+            return False
+        else:
+            user = User(name, password)
+            session.add(user)
+            return True
 
     @Session
-    async def rate_product(self, session, user_id, product_id, rate):
-        rate = Rate(user_id, product_id, rate)
-        session.add(rate)
+    async def get_user(self, session, name, password):
+        result = await session.execute(select(User).filter(User.name == name))
+        result = result.scalars().all()
+        if result:
+            if result[0].password == password:
+                return result[0].__dict__
+            else:
+                return False
+        else:
+            return False
 
     @Session
-    async def get_nearest_for_user_by_median(self, session, user_id) -> int:
+    async def rate_product(self, session, user_id: int, product_id: int, u_rate: bool):
+        rates = await session.execute(select(Rate).filter(and_(Rate.user_id == user_id, Rate.product_id == product_id)))
+        rates = rates.scalars().all()
+        if rates:
+            return False
+        else:
+            rate = Rate(user_id, product_id, u_rate)
+            session.add(rate)
 
+    @Session
+    async def get_nearest_for_user_by_median(self, session, user_id) -> list:
+        rated = []
 
-        q = session.query(Vector, Product, User, Rate).filter(Rate.user.id == user_id).filter(Rate.rate == True).all()
+        q = select(Vector, Rate).filter(and_(Rate.user_id == user_id, Vector.product_id == Rate.product_id)
+                                        ).filter(Rate.rate == True)
         query_vectors = await session.execute(q)
+        query_vectors = query_vectors.scalars().all()
         vectors_t = []
         for i in query_vectors:
+            rated.append(i.product_id)
             vectors_t.append(pickle.loads(i.vector))
 
-        q = session.query(Vector, Product, User, Rate).filter(Rate.user.id == user_id).filter(Rate.rate == False).all()
+        q = select(Vector, Rate).filter(and_(Rate.user_id == user_id, Vector.product_id == Rate.product_id)
+                                        ).filter(Rate.rate == False)
         query_vectors = await session.execute(q)
+        query_vectors = query_vectors.scalars().all()
         vectors_f = []
-
-
         for i in query_vectors:
+            rated.append(i.product_id)
             vectors_f.append(pickle.loads(i.vector))
 
-        vectors_t = np.array(vectors_t)
-        vectors_f = np.array(vectors_f)
+        vectors = await self.get_vectors_without(rated)
+        vectors_id = vectors[0]
+        vectors_v = np.array(vectors[1])
 
-        vectors = np.array(await self.get_all_vectors())
+        dist_f = None
+        if not vectors_t:
+            vectors_f = np.array(vectors_f)
+            median_f = np.median(vectors_f, axis=0)
+            dist_f = np.inner(np.array(median_f), vectors_v)
+
+        vectors_t = np.array(vectors_t)
 
         median_t = np.median(vectors_t, axis=0)
-        dist_t = np.inner(median_t, vectors[1])
+        dist_t = np.inner(np.array(median_t), vectors_v)
 
-        median_f = np.median(vectors_f, axis=0)
-        dist_f = np.inner(median_f, vectors[1])
+        if dist_f is None:
+            dist = dist_t
+        else:
+            dist = dist_t - dist_f
 
-        dist = vectors_t - vectors_f
-        id = vectors[np.argmax(dist)]
-        return id
+        ids = [vectors_id[i] for i in np.argsort(dist)[-5:]]
+        return ids
+
+    @Session
+    async def get_random_product(self, session) -> Product:
+        result = await session.execute(select(Product))
+        products = result.scalars().all()
+        res = choice(products).__dict__
+        return res
+
+    @Session
+    async def get_product_by_req(self, session, param):
+        result = await session.execute(select(Product))
+        products = result.scalars().all()
+        res = []
+        for i in products:
+            if param in i.name:
+                res.append(i)
+        if len(res) == 0:
+            return None
+        else:
+            res = [i.__dict__ for i in res]
+            return res
+
+    @Session
+    async def get_product_by_id(self, session, product_id: int) -> dict | None:
+        result = await session.execute(select(Product).where(Product.id == product_id))
+        product = result.scalars().first()
+        if product is None:
+            return None
+        else:
+            return product.__dict__
+
+    async def get_recommendation(self, user_id: int):
+        ids = await self.get_nearest_for_user_by_median(user_id)
+        ret = []
+        for i in ids:
+            ret.append(await self.get_product_by_id(i))
+        return ret
 
 
 if __name__ == "__main__":

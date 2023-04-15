@@ -10,7 +10,7 @@ from async_db import asyncHandler, async_to_tread
 
 
 def parse_object(x):
-    if x['images']:
+    if x['images'] and x['description'] != '':
         attributes = []
         for i in x['product_details']:
             pairs = list(i.items())[0]
