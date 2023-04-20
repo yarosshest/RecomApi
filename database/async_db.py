@@ -6,6 +6,7 @@ import time
 import pickle
 
 import numpy as np
+from numpy import dot, norm, median
 from typing import List, Any
 
 from sqlalchemy import ForeignKey, or_, and_, NullPool, PickleType
@@ -144,6 +145,16 @@ def Session(fun):
     return wrapper
 
 
+async def calculate_median_distance(vect_f, vect_s: np.array) -> np.array:
+    median = np.median(vect_f, axis=0)
+    dist = np.inner(median, vect_s)
+    return dist
+
+
+def cos_sim(a, b):
+    return dot(a, b) / (norm(a) * norm(b))
+
+
 class asyncHandler:
     async def init_db(self):
         engine = create_async_engine(
@@ -268,46 +279,67 @@ class asyncHandler:
             session.add(rate)
 
     @Session
+    async def get_user_vectors(self, session, user_id: int, rtype: bool, rated: list) -> list:
+        q = select(Vector, Rate).filter(and_(Rate.user_id == user_id, Vector.product_id == Rate.product_id)
+                                        ).filter(Rate.rate == rtype)
+        query_vectors = await session.execute(q)
+        query_vectors = query_vectors.scalars().all()
+        vectors = []
+        for i in query_vectors:
+            rated.append(i.product_id)
+            vectors.append(pickle.loads(i.vector))
+
+        return vectors
+
+    @Session
     async def get_nearest_for_user_by_median(self, session, user_id) -> list:
         rated = []
 
-        q = select(Vector, Rate).filter(and_(Rate.user_id == user_id, Vector.product_id == Rate.product_id)
-                                        ).filter(Rate.rate == True)
-        query_vectors = await session.execute(q)
-        query_vectors = query_vectors.scalars().all()
-        vectors_t = []
-        for i in query_vectors:
-            rated.append(i.product_id)
-            vectors_t.append(pickle.loads(i.vector))
+        vectors_t = np.array(await self.get_user_vectors(user_id, True, rated))
 
-        q = select(Vector, Rate).filter(and_(Rate.user_id == user_id, Vector.product_id == Rate.product_id)
-                                        ).filter(Rate.rate == False)
-        query_vectors = await session.execute(q)
-        query_vectors = query_vectors.scalars().all()
-        vectors_f = []
-        for i in query_vectors:
-            rated.append(i.product_id)
-            vectors_f.append(pickle.loads(i.vector))
+        vectors_f = np.array(await self.get_user_vectors(user_id, False, rated))
 
         vectors = await self.get_vectors_without(rated)
         vectors_id = vectors[0]
-        vectors_v = np.array(vectors[1])
+        vectors_all = np.array(vectors[1])
 
         dist_f = None
         if vectors_f:
-            vectors_f = np.array(vectors_f)
-            median_f = np.median(vectors_f, axis=0)
-            dist_f = np.inner(np.array(median_f), vectors_v)
+            dist_f = calculate_median_distance(vectors_f, vectors_all)
 
-        vectors_t = np.array(vectors_t)
-
-        median_t = np.median(vectors_t, axis=0)
-        dist_t = np.inner(np.array(median_t), vectors_v)
+        dist_t = calculate_median_distance(vectors_t, vectors_all)
 
         if dist_f is None:
             dist = dist_t
         else:
             dist = dist_t - dist_f
+
+        films = np.argsort(dist)
+        ids = [vectors_id[i] for i in films[:5]]
+        return ids
+
+    @Session
+    async def get_nearest_for_user_by_cos_sim(self, session, user_id) -> list:
+        rated = []
+
+        vector_t = median(np.array(await self.get_user_vectors(user_id, True, rated)))
+
+        vector_f = median(np.array(await self.get_user_vectors(user_id, False, rated)))
+
+        vectors = await self.get_vectors_without(rated)
+        vectors_id = vectors[0]
+        vectors_all = np.array(vectors[1])
+
+        dist_f = None
+        if vector_f:
+            dist_f = [cos_sim(vector_f, i) for i in vectors_all]
+
+        dist_t = [cos_sim(vector_t, i) for i in vectors_all]
+
+        if dist_f is None:
+            dist = dist_t
+        else:
+            dist = [dist_t[i] - dist_f[i] for i in range(vectors_all.shape[0])]
 
         films = np.argsort(dist)
         ids = [vectors_id[i] for i in films[:5]]
@@ -349,7 +381,6 @@ class asyncHandler:
         for i in ids:
             ret.append(await self.get_product_by_id(i))
         return ret
-
 
 
 if __name__ == "__main__":
