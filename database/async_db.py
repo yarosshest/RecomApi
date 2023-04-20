@@ -294,7 +294,7 @@ class asyncHandler:
         vectors_v = np.array(vectors[1])
 
         dist_f = None
-        if not vectors_t:
+        if vectors_f:
             vectors_f = np.array(vectors_f)
             median_f = np.median(vectors_f, axis=0)
             dist_f = np.inner(np.array(median_f), vectors_v)
@@ -309,7 +309,8 @@ class asyncHandler:
         else:
             dist = dist_t - dist_f
 
-        ids = [vectors_id[i] for i in np.argsort(dist)[-5:]]
+        films = np.argsort(dist)
+        ids = [vectors_id[i] for i in films[:5]]
         return ids
 
     @Session
@@ -348,6 +349,7 @@ class asyncHandler:
         for i in ids:
             ret.append(await self.get_product_by_id(i))
         return ret
+
 
 
 if __name__ == "__main__":

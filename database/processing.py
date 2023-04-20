@@ -1,21 +1,10 @@
 import tracemalloc
-import tensorflow_text
-from absl import logging
-from tensorflow.python.client import device_lib
-import tensorflow as tf
 import asyncio
-import tensorflow_hub as hub
-import matplotlib.pyplot as plt
 import numpy as np
-import os
-import pandas as pd
-import re
-import seaborn as sns
 from tqdm.asyncio import trange, tqdm
-# from db import ObjectHandler
 from async_db import asyncHandler
-import tensorflow as tf
 from multiprocessing import Pool
+from sentence_transformers import SentenceTransformer
 
 
 async def calc_distance(distances: list, id_f, id_s: int, vec_f, vec_s: np.array) -> None:
@@ -35,10 +24,10 @@ async def get_data(h):
 
 
 def embed(input):
-    module_url = "https://tfhub.dev/google/universal-sentence-encoder-multilingual/3"
-    model = hub.load(module_url)
-    print("module %s loaded" % module_url)
-    return model(input)
+    mod = 'uaritm/multilingual_en_ru_uk'
+    model = SentenceTransformer(mod)
+    print("module %s loaded" % mod)
+    return model.encode(input, show_progress_bar = True)
 
 
 async def calc_dist(h):
@@ -65,7 +54,6 @@ async def calc_dist(h):
 
 async def calc_vectors(h):
     dt = await get_data(h)
-    dt = dt[:2]
     print("descriptions load from bd")
     ids = dt[0]
     des = dt[1]

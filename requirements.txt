@@ -2,7 +2,7 @@ psycopg2
 sqlalchemy
 kaggle
 tensorflow_hub
-tensorflow == 2.10.0
+tensorflow
 matplotlib
 pandas
 seaborn
@@ -10,4 +10,4 @@ tqdm
 asyncpg
 telebot
 emoji
-tensorflow_text == 2.10.0
+sentence_transformers
