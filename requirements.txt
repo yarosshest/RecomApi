@@ -11,3 +11,4 @@ asyncpg
 telebot
 emoji
 sentence_transformers
+scikit-learn
