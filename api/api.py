@@ -1,6 +1,6 @@
 import uvicorn as uvicorn
 from fastapi import Cookie, FastAPI, Response
-from database.async_db import asyncHandler
+from database.async_db import asyncHandler as DB
 from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel
 
@@ -35,8 +35,7 @@ class Message(BaseModel):
          },
          )
 async def login(response: Response, log, password: str):
-    h = asyncHandler()
-    user = await h.get_user(log, password)
+    user = await DB.get_user(log, password)
     if user is False:
         return JSONResponse(status_code=404, content={"message": "User not found"})
     else:
@@ -56,8 +55,7 @@ async def login(response: Response, log, password: str):
                    },
          })
 async def register(response: Response, log, password: str):
-    h = asyncHandler()
-    user_id = await h.add_user(log, password)
+    user_id = await DB.add_user(log, password)
     if user_id is False:
         return JSONResponse(status_code=405, content={"message": "User already exists"})
     else:
@@ -83,8 +81,7 @@ async def main() -> dict:
                    },
          })
 async def find(line):
-    h = asyncHandler()
-    res = await h.get_product_by_req(line)
+    res = await DB.get_product_by_req(line)
     if res is None:
         return JSONResponse(status_code=404, content={"message": "Object not found"})
     else:
@@ -92,8 +89,10 @@ async def find(line):
 
 
 @app.post("/rate")
-async def rate(prod_id:int, rt:bool):
+async def rate(prod_id: int, rt: bool):
+    await DB.rate_product(prod_id, rt)
 
+    return {"msg": "ok"}
 
 
 if __name__ == "__main__":

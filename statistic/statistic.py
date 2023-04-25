@@ -6,7 +6,8 @@ from sklearn.model_selection import train_test_split
 import matplotlib.pyplot as plt
 from random import shuffle
 
-from database.async_db import asyncHandler
+from database.async_db import asyncHandler as db
+from database.recomindation_alg import get_nearest_for_user_by_cos_sim, get_nearest_for_user_by_median
 
 
 def cos_sim(a, b):
@@ -19,8 +20,7 @@ class System:
     obj = {}
 
     def __init__(self, id_t, id_f, filt):
-        self.db = asyncHandler()
-        vectors = asyncio.run(self.db.get_all_vectors())
+        vectors = asyncio.run(db.get_all_vectors())
 
         for i in range(len(vectors[0])):
             if vectors[0][i] in id_t:
@@ -38,29 +38,10 @@ class System:
             self.obj_f.update({id: ob})
 
     def get_predict(self):
-        buf = self.obj_t.values()
-        vector_t = median(np.array(list(self.obj_t.values())), axis=0)
-
-        vector_f = median(np.array(list(self.obj_f.values())), axis=0)
-
-        vectors_id = list(self.obj.keys())
-        vectors_all = np.array(list(self.obj.values()))
-
-        dist_f = None
-        if np.isfinite(vector_f.any()):
-            dist_f = [cos_sim(vector_f, i) for i in vectors_all]
-
-        dist_t = [cos_sim(vector_t, i) for i in vectors_all]
-
-        if dist_f is None:
-            dist = dist_t
-        else:
-            dist = [dist_t[i] - dist_f[i] for i in range(vectors_all.shape[0])]
-
-        dist = np.array(dist)
-
-        films = np.argsort(dist)
-        ids = [vectors_id[i] for i in films[-5:]][::-1]
+        ids = asyncio.run(get_nearest_for_user_by_median(
+            [list(self.obj.keys()), list(self.obj.values())],
+            list(self.obj_t.values()),
+            list(self.obj_f.values())))
 
         return ids[0]
 
@@ -70,8 +51,7 @@ class User:
     obj_f = {}
 
     def __init__(self, id_t, id_f):
-        self.db = asyncHandler()
-        vectors = asyncio.run(self.db.get_all_vectors())
+        vectors = asyncio.run(db.get_all_vectors())
 
         for i in range(len(vectors[0])):
             if vectors[0][i] in id_t:
@@ -93,7 +73,7 @@ def test_1():
     id_t = [14135, 2475, 504, 2297, 64650, 2345, 6688, 8554, 25481, 57750, 62418, 180, 63776, 7525]  # 14
     id_f = [514, 519, 544, 863, 926, 945, 951, 864, 876, 958, 1063, 1089, 1108, 1157]  # 14
 
-    X_train, X_test, y_train, y_test = train_test_split(id_t, id_f, test_size=0.9, random_state=42)
+    X_train, X_test, y_train, y_test = train_test_split(id_t, id_f, test_size=0.2, random_state=52)
 
     user = User(id_t, id_f)
     id_all = id_t + id_f
