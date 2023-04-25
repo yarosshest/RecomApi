@@ -6,7 +6,8 @@ import time
 import pickle
 
 import numpy as np
-from numpy import dot, norm, median
+from numpy import dot, median
+from numpy.linalg import norm
 from typing import List, Any
 
 from sqlalchemy import ForeignKey, or_, and_, NullPool, PickleType
@@ -291,8 +292,7 @@ class asyncHandler:
 
         return vectors
 
-    @Session
-    async def get_nearest_for_user_by_median(self, session, user_id) -> list:
+    async def get_nearest_for_user_by_median(self, user_id) -> list:
         rated = []
 
         vectors_t = np.array(await self.get_user_vectors(user_id, True, rated))
@@ -318,20 +318,19 @@ class asyncHandler:
         ids = [vectors_id[i] for i in films[:5]]
         return ids
 
-    @Session
-    async def get_nearest_for_user_by_cos_sim(self, session, user_id) -> list:
+    async def get_nearest_for_user_by_cos_sim(self, user_id) -> list:
         rated = []
 
-        vector_t = median(np.array(await self.get_user_vectors(user_id, True, rated)))
+        vector_t = median(np.array(await self.get_user_vectors(user_id, True, rated)), axis=0)
 
-        vector_f = median(np.array(await self.get_user_vectors(user_id, False, rated)))
+        vector_f = median(np.array(await self.get_user_vectors(user_id, False, rated)), axis=0)
 
         vectors = await self.get_vectors_without(rated)
         vectors_id = vectors[0]
         vectors_all = np.array(vectors[1])
 
         dist_f = None
-        if vector_f:
+        if np.isfinite(vector_f):
             dist_f = [cos_sim(vector_f, i) for i in vectors_all]
 
         dist_t = [cos_sim(vector_t, i) for i in vectors_all]
@@ -341,8 +340,11 @@ class asyncHandler:
         else:
             dist = [dist_t[i] - dist_f[i] for i in range(vectors_all.shape[0])]
 
+        dist = np.array(dist)
+
         films = np.argsort(dist)
-        ids = [vectors_id[i] for i in films[:5]]
+        ids = [vectors_id[i] for i in films[-5:]][::-1]
+
         return ids
 
     @Session
@@ -376,7 +378,7 @@ class asyncHandler:
             return product.__dict__
 
     async def get_recommendation(self, user_id: int):
-        ids = await self.get_nearest_for_user_by_median(user_id)
+        ids = await self.get_nearest_for_user_by_cos_sim(user_id)
         ret = []
         for i in ids:
             ret.append(await self.get_product_by_id(i))
