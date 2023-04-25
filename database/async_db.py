@@ -6,7 +6,8 @@ import time
 import pickle
 
 import numpy as np
-from numpy import dot, norm, median
+from numpy import dot, median
+from numpy.linalg import norm
 from typing import List, Any
 
 from sqlalchemy import ForeignKey, or_, and_, NullPool, PickleType
@@ -27,7 +28,7 @@ from tqdm import tqdm
 
 from random import choice
 
-BDCONNECTION = "postgresql+asyncpg://postgres:postgres@localhost:5432/recomapi_as"
+BDCONNECTION = "postgresql+asyncpg://postgres:postgres@localhost:5433/recomapi_as"
 
 
 class Base(DeclarativeBase):
@@ -246,7 +247,7 @@ class asyncHandler:
         return res
 
     @Session
-    async def add_user(self, session, name, password):
+    async def add_user(self, session, name, password) -> bool | int:
         result = await session.execute(select(User).filter(User.name == name))
         result = result.scalars().all()
         if result:
@@ -254,10 +255,11 @@ class asyncHandler:
         else:
             user = User(name, password)
             session.add(user)
-            return True
+            await session.flush()
+            return user.id
 
     @Session
-    async def get_user(self, session, name, password):
+    async def get_user(self, session, name, password) -> bool | dict:
         result = await session.execute(select(User).filter(User.name == name))
         result = result.scalars().all()
         if result:
@@ -353,7 +355,7 @@ class asyncHandler:
         return res
 
     @Session
-    async def get_product_by_req(self, session, param):
+    async def get_product_by_req(self, session, param) -> list[dict] | None:
         result = await session.execute(select(Product))
         products = result.scalars().all()
         res = []
