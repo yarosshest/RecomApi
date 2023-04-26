@@ -52,7 +52,7 @@ async def get_nearest_for_user_by_cos_sim(clear_vectors, vectors_t, vectors_f) -
     vectors_all = np.array(clear_vectors[1])
 
     dist_f = None
-    if np.isfinite(vectors_f):
+    if np.isfinite(vectors_f.any()):
         dist_f = [cos_sim(vectors_f, i) for i in vectors_all]
 
     dist_t = [cos_sim(vectors_t, i) for i in vectors_all]
@@ -75,15 +75,17 @@ async def get_neareses_by_max_pooling(clear_vectors, vectors_t, vectors_f) -> li
     vectors_all = clear_vectors[1]
 
     dist_f = None
-    if np.isfinite(vectors_f):
+    if vectors_f:
         dist_f = await calc_max_sim(vectors_f, vectors_all)
 
-    dist_t = await calc_max_sim(vectors_f, vectors_all)
+    dist_t = await calc_max_sim(vectors_t, vectors_all)
 
     if dist_f is None:
         dist = dist_t
     else:
-        dist = [dist_t[i] - dist_f[i] for i in range(vectors_all.shape[0])]
+        dist = [dist_t[i] - dist_f[i] for i in range(len(vectors_all))]
+
+    # dist = dist_t
 
     dist = np.array(dist)
 
