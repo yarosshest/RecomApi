@@ -88,11 +88,11 @@ async def find(line):
         return res
 
 
-@app.post("/rate")
-async def rate(prod_id: int, rt: bool):
-    await DB.rate_product(prod_id, rt)
-
-    return {"msg": "ok"}
+@app.post("/rate",
+          responses={202: {"model": Message, "message": "ok"}})
+async def rate(prod_id: int, user_rate: bool):
+    await DB.rate_product(prod_id, user_rate)
+    return {"message": "ok"}
 
 
 if __name__ == "__main__":
