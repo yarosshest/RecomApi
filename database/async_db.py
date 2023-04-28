@@ -12,7 +12,7 @@ from tqdm import tqdm
 
 from random import choice
 
-from database.recomindation_alg import get_nearest_for_user_by_cos_sim
+from database.recomindation_alg import get_neareses_by_max_pooling
 from database.Db_objects import Product, Attribute, Distance, Base, BDCONNECTION, Vector, Rate, User
 
 
@@ -36,7 +36,9 @@ def Session(fun):
         async with async_sessionmaker(engine, expire_on_commit=True)() as session:
             async with session.begin():
                 result = await fun(session, *args)
+                print("done")
                 await session.commit()
+                print("done")
         return result
 
     return wrapper
@@ -234,13 +236,30 @@ class asyncHandler:
         vector_f = await asyncHandler.get_user_vectors(user_id, False, rated)
         clear_vectors = await asyncHandler.get_vectors_without(rated)
 
-        ids = await get_nearest_for_user_by_cos_sim(clear_vectors, vector_t, vector_f)
+        ids = await get_neareses_by_max_pooling(clear_vectors, vector_t, vector_f)
         ret = []
         for i in ids:
             ret.append(await asyncHandler.get_product_by_id(i))
         return ret
 
+    @staticmethod
+    @Session
+    async def clear_products_without_short_description(session):
+        product_with_short = await session.execute(select(Attribute).where(
+            and_(Attribute.name == "short_desription", Attribute.value != "None")))
+        not_del = product_with_short.scalars().all()
+        wanted_ids = [i.product_id for i in not_del]
+
+        products = await session.execute(select(Product))
+        products = products.scalars().all()
+
+        for i in tqdm(products):
+            if i.id not in wanted_ids:
+                await session.delete(i)
+
 
 if __name__ == "__main__":
     tracemalloc.start()
     asyncio.run(asyncHandler.init_db())
+    asyncio.run(asyncHandler.clear_products_without_short_description())
+    print("done")

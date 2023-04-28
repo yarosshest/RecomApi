@@ -7,7 +7,7 @@ from sqlalchemy.orm import mapped_column
 from sqlalchemy.orm import relationship
 from typing import List
 
-BDCONNECTION = "postgresql+asyncpg://postgres:postgres@localhost:5432/recomapi_as"
+BDCONNECTION = "postgresql+asyncpg://postgres:postgres@localhost:5433 /recomapi_as"
 
 
 class Base(DeclarativeBase):

@@ -82,7 +82,7 @@ def test_1():
             60668, 386, 30355,
             1258, 66210, 1808]
 
-    k = 0.5
+    k = 0.8
 
     X_train, X_test = split_data(id_t, k)
 
