@@ -29,6 +29,7 @@ async def parse_data(dt):
         if ob is not None:
             objects.append(ob)
 
+    print("adding products in db")
     await asyncHandler.add_some_products(objects)
 
 

@@ -8,6 +8,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import async_sessionmaker
 from sqlalchemy.ext.asyncio import create_async_engine
 from sqlalchemy import and_
+from sqlalchemy.orm import selectinload
 from tqdm import tqdm
 
 from random import choice
@@ -71,7 +72,6 @@ class asyncHandler:
     @staticmethod
     @Session
     async def add_some_products(session, products) -> None:
-        print("adding products in db")
         for i in tqdm(products):
             prod = Product(i[0][0], i[0][1], i[0][2])
             session.add(prod)
@@ -147,13 +147,16 @@ class asyncHandler:
     @staticmethod
     @Session
     async def get_all_short_description(session) -> list:
-        result = await session.execute(select(Product, Attribute).join(
-            Product, Product.id == Attribute.product_id))
+        q = select(Product).\
+            join(Attribute, Attribute.product_id == Product.id).\
+            filter(Attribute.name == "short_desription").\
+            options(selectinload(Product.attribute))
+        result = await session.execute(q)
+
         products = result.scalars().all()
         res = []
         for prod in tqdm(products):
-            if prod.description != '':
-                res.append([prod.id, prod.description])
+            res.append([prod.id, prod.attribute.short_description])
         return res
 
     @staticmethod
@@ -270,5 +273,5 @@ class asyncHandler:
 if __name__ == "__main__":
     tracemalloc.start()
     asyncio.run(asyncHandler.init_db())
-    asyncio.run(asyncHandler.clear_products_without_short_description())
-    print("done")
+    # asyncio.run(asyncHandler.clear_products_without_short_description())
+    # print("done")
