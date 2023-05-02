@@ -11,11 +11,11 @@ async def calc_distance(distances: list, id_f, id_s: int, vec_f, vec_s: np.array
     distances.append([id_f, id_s, np.dot(vec_f, vec_s)])
 
 
-async def get_data(h):
+async def get_data():
     ids = []
     des = []
 
-    data = await h.get_all_description()
+    data = await asyncHandler.get_all_short_description()
     for i in data:
         ids.append(i[0])
         des.append(i[1])
@@ -27,11 +27,11 @@ def embed(input):
     mod = 'uaritm/multilingual_en_ru_uk'
     model = SentenceTransformer(mod)
     print("module %s loaded" % mod)
-    return model.encode(input, show_progress_bar = True)
+    return model.encode(input, show_progress_bar=True)
 
 
-async def calc_dist(h):
-    dt = await get_data(h)
+async def calc_dist():
+    dt = await get_data()
     dt = dt[:100]
     print("descriptions load from bd")
     ids = dt[0]
@@ -49,11 +49,11 @@ async def calc_dist(h):
                 p.map_async(calc_distance, [distances, ids[i], ids[j], dist[i], dist[j]])
         p.close()
         p.join()
-    await h.add_some_distances(distances)
+    await asyncHandler.add_some_distances(distances)
 
 
-async def calc_vectors(h):
-    dt = await get_data(h)
+async def calc_vectors():
+    dt = await get_data()
     print("descriptions load from bd")
     ids = dt[0]
     des = dt[1]
@@ -63,11 +63,10 @@ async def calc_vectors(h):
     vectors = []
     async for i in trange(len(ids)):
         vectors.append([ids[i], vec[i]])
-    await h.add_some_vectors(vectors)
+    await asyncHandler.add_some_vectors(vectors)
 
 
 if __name__ == "__main__":
     tracemalloc.start()
-    h = asyncHandler()
-    asyncio.run(calc_vectors(h))
+    asyncio.run(calc_vectors())
     # asyncio.run(calc_dist(h))

@@ -3,7 +3,7 @@ import tracemalloc
 import asyncio
 import pickle
 
-from sqlalchemy import ForeignKey, or_, and_, NullPool, PickleType
+from sqlalchemy import ForeignKey, or_, and_, NullPool, PickleType, delete
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import async_sessionmaker
 from sqlalchemy.ext.asyncio import create_async_engine
@@ -146,6 +146,18 @@ class asyncHandler:
 
     @staticmethod
     @Session
+    async def get_all_short_description(session) -> list:
+        result = await session.execute(select(Product, Attribute).join(
+            Product, Product.id == Attribute.product_id))
+        products = result.scalars().all()
+        res = []
+        for prod in tqdm(products):
+            if prod.description != '':
+                res.append([prod.id, prod.description])
+        return res
+
+    @staticmethod
+    @Session
     async def add_user(session, name, password) -> bool | int:
         result = await session.execute(select(User).filter(User.name == name))
         result = result.scalars().all()
@@ -245,17 +257,14 @@ class asyncHandler:
     @staticmethod
     @Session
     async def clear_products_without_short_description(session):
-        product_with_short = await session.execute(select(Attribute).where(
-            and_(Attribute.name == "short_desription", Attribute.value != "None")))
-        not_del = product_with_short.scalars().all()
-        wanted_ids = [i.product_id for i in not_del]
+        statement = delete(Product).where(
+            and_(Attribute.name == "short_desription", Attribute.value == "None"))
+        # toDel = await session.execute(select(Product).join(Attribute).where(
+        #     and_(Attribute.name == "short_desription", Attribute.value != "None")))
+        await session.execute(statement)
 
-        products = await session.execute(select(Product))
-        products = products.scalars().all()
-
-        for i in tqdm(products):
-            if i.id not in wanted_ids:
-                await session.delete(i)
+        # for i in tqdm(products):
+        #         await session.delete(i)
 
 
 if __name__ == "__main__":
