@@ -5,6 +5,7 @@ from tqdm.asyncio import trange, tqdm
 from async_db import asyncHandler
 from multiprocessing import Pool
 from sentence_transformers import SentenceTransformer
+from database.lemmatization import lemmatize_mass
 
 
 async def calc_distance(distances: list, id_f, id_s: int, vec_f, vec_s: np.array) -> None:
@@ -56,7 +57,8 @@ async def calc_vectors():
     dt = await get_data()
     print("descriptions load from bd")
     ids = dt[0]
-    des = dt[1]
+    print("lemmatization")
+    des = lemmatize_mass(dt[1])
     print("processing descriptions start")
     vec = embed(des)
     print("processing descriptions end")

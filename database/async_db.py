@@ -8,7 +8,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import async_sessionmaker
 from sqlalchemy.ext.asyncio import create_async_engine
 from sqlalchemy import and_
-from sqlalchemy.orm import selectinload, joinedload
+from sqlalchemy.orm import selectinload, joinedload, contains_eager
 from tqdm import tqdm
 
 from random import choice
@@ -147,20 +147,17 @@ class asyncHandler:
     @staticmethod
     @Session
     async def get_all_short_description(session) -> list:
-        # q = select(Product).\
-        #     join(Attribute,
-        #          and_(Attribute.product_id == Product.id,Attribute.name == "short_desription")).\
-        #     options(selectinload(Product.attribute))
-
-        q = select(Product).options(
-            joinedload(Product.attribute,Attribute.product_id == Product.id, Attribute.name == "short_desription"))
+        q = select(Product).\
+            join(Attribute,
+                 and_(Attribute.product_id == Product.id,Attribute.name == "short_desription")).\
+            options(contains_eager(Product.attribute))
 
         result = await session.execute(q)
 
-        products = result.scalars().all()
+        products = result.scalars().unique().all()
         res = []
         for prod in tqdm(products):
-            res.append([prod.id, prod.attribute.short_description])
+            res.append([prod.id, prod.attribute[0].value])
         return res
 
     @staticmethod
