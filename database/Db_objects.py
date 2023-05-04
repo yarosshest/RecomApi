@@ -20,6 +20,7 @@ class Product(Base):
     distance: Mapped[List[Distance]] = relationship()
     attribute: Mapped[List[Attribute]] = relationship()
     vector: Mapped[Vector] = relationship(back_populates="product")
+    lemma: Mapped[Lemma] = relationship(back_populates="product")
     rates: Mapped[List[Rate]] = relationship(back_populates="product")
     name: Mapped[str]
     photo: Mapped[str]
@@ -54,6 +55,18 @@ class Vector(Base):
     def __init__(self, product_id, vector):
         self.product_id = product_id
         self.vector = vector
+
+
+class Lemma(Base):
+    __tablename__ = 'lemma_table'
+    id: Mapped[int] = mapped_column(primary_key=True)
+    product_id: Mapped[int] = mapped_column(ForeignKey("product_table.id"))
+    product: Mapped[Product] = relationship(back_populates="lemma")
+    lemma: Mapped[str]
+
+    def __init__(self, product_id, lemma):
+        self.product_id = product_id
+        self.lemma = lemma
 
 
 class Attribute(Base):
@@ -97,3 +110,4 @@ class Rate(Base):
         self.user_id = user_id
         self.product_id = product_id
         self.rate = rate
+

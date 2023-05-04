@@ -2,10 +2,12 @@ import tracemalloc
 import asyncio
 import numpy as np
 from tqdm.asyncio import trange, tqdm
-from async_db import asyncHandler
+from database.async_db import asyncHandler
 from multiprocessing import Pool
 from sentence_transformers import SentenceTransformer
-from database.lemmatization import lemmatize_mass
+from NLP.lemmatization import lemmatize_many
+from nltk import download
+from nltk.corpus import stopwords
 
 
 async def calc_distance(distances: list, id_f, id_s: int, vec_f, vec_s: np.array) -> None:
@@ -27,8 +29,7 @@ async def get_data():
 def embed(input):
     mod = 'uaritm/multilingual_en_ru_uk'
     model = SentenceTransformer(mod)
-    print("module %s loaded" % mod)
-    return model.encode(input, show_progress_bar=True)
+    return model.encode(input, show_progress_bar=False)
 
 
 async def calc_dist():
@@ -58,7 +59,11 @@ async def calc_vectors():
     print("descriptions load from bd")
     ids = dt[0]
     print("lemmatization")
-    des = lemmatize_mass(dt[1])
+    des = lemmatize_many(dt[1])
+    lemmas = []
+    async for i in trange(len(ids)):
+        lemmas.append([ids[i], des[i]])
+    await asyncHandler.add_some_lemma(lemmas)
     print("processing descriptions start")
     vec = embed(des)
     print("processing descriptions end")
@@ -71,4 +76,5 @@ async def calc_vectors():
 if __name__ == "__main__":
     tracemalloc.start()
     asyncio.run(calc_vectors())
+    print("done")
     # asyncio.run(calc_dist(h))
