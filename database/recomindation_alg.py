@@ -1,6 +1,8 @@
 import numpy as np
 from numpy import dot, median
 from numpy.linalg import norm
+from catboost import CatBoostClassifier, Pool
+from sklearn.model_selection import train_test_split
 
 
 async def calculate_median_distance(vect_f, vect_s: np.array) -> np.array:
@@ -93,3 +95,50 @@ async def get_neareses_by_max_pooling(clear_vectors, vectors_t, vectors_f) -> li
     ids = [vectors_id[i] for i in films[-5:]][::-1]
 
     return ids
+
+
+async def get_data_to_boost(cat_all: dict, t_id: list, f_id: list):
+    out = []
+
+    for i in t_id + f_id:
+        out.append(cat_all[i])
+
+    return out, [1] * len(t_id) + [0] * len(f_id)
+
+
+async def get_cat_recommed(cat_all: dict, t_id: list, f_id: list) -> list:
+    x, y = await get_data_to_boost(cat_all, t_id, f_id)
+    X_train, X_test, y_train, y_test = train_test_split(x, y, test_size=0.2)
+
+    cat = CatBoostClassifier(
+        thread_count=8,
+        iterations=50,
+        learning_rate=0.1,
+    )
+
+    cat.fit(
+        X_train, y_train,
+        eval_set=(X_test, y_test),
+        embedding_features=[0, 9],
+        logging_level='Silent',
+        plot=False
+    )
+
+    all_ids = list(cat_all.keys())
+    for i in t_id + f_id:
+        all_ids.remove(i)
+
+    all_X = [cat_all[i] for i in all_ids]
+    all_y = [cat.predict_proba(all_X[i]) for i in range(len(all_X))]
+    classes = cat.predict(all_X)
+
+    proba = {}
+    for i in range(len(all_ids)):
+        if classes[i] == 1:
+            proba.update({all_ids[i]: all_y[i]})
+
+    it = proba.items()
+
+    sort = sorted(it, key=lambda x: x[1][1], reverse=True)[:5]
+
+    return [i[0] for i in sort]

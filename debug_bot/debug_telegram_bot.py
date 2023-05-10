@@ -86,7 +86,7 @@ def decorate_info(message):
 def get_recommendation(message):
     h = asyncHandler()
     user = asyncio.run(h.get_user(str(message.from_user.id), "telegram"))
-    product = asyncio.run(h.get_recommendation(user['id']))
+    product = asyncio.run(h.get_recommend_cat(user['id']))
     for i in product:
         product_page(i['id'], message.from_user.id)
 

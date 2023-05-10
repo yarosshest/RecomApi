@@ -3,6 +3,8 @@ import tracemalloc
 import asyncio
 import pickle
 
+import numpy as np
+import pandas as pd
 from sqlalchemy import ForeignKey, or_, and_, NullPool, PickleType, delete
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import async_sessionmaker
@@ -12,8 +14,9 @@ from sqlalchemy.orm import selectinload, joinedload, contains_eager
 from tqdm import tqdm
 
 from random import choice
+from sklearn.preprocessing import MultiLabelBinarizer
 
-from database.recomindation_alg import get_neareses_by_max_pooling
+from database.recomindation_alg import get_cat_recommed
 from database.Db_objects import Product, Attribute, Distance, Base, BDCONNECTION, Vector, Rate, User, Lemma
 
 
@@ -41,6 +44,8 @@ def Session(fun):
         return result
 
     return wrapper
+
+
 
 
 class asyncHandler:
@@ -152,9 +157,9 @@ class asyncHandler:
     @staticmethod
     @Session
     async def get_all_short_description(session) -> list:
-        q = select(Product).\
+        q = select(Product). \
             join(Attribute,
-                 and_(Attribute.product_id == Product.id,Attribute.name == "short_desription")).\
+                 and_(Attribute.product_id == Product.id, Attribute.name == "short_desription")). \
             options(contains_eager(Product.attribute))
 
         result = await session.execute(q)
@@ -164,6 +169,110 @@ class asyncHandler:
         for prod in tqdm(products):
             res.append([prod.id, prod.attribute[0].value])
         return res
+
+    @staticmethod
+    @Session
+    async def get_gen_enc(session) -> MultiLabelBinarizer:
+        q_genres = select(Attribute).filter(Attribute.name == 'genres').distinct()
+        genres = await session.execute(q_genres)
+        gen = genres.scalars().all()
+
+        enc = MultiLabelBinarizer()
+        g = []
+        for i in gen:
+            g.append(i.value.split(' '))
+
+        enc.fit(g)
+        return enc
+
+    @staticmethod
+    @Session
+    async def get_cat_data_by_id(session, p_id) -> list:
+        enc = await asyncHandler.get_gen_enc()
+
+        q = select(Product).filter(Product.id == p_id). \
+            join(Attribute, Attribute.product_id == Product.id). \
+            join(Vector, Vector.id == Product.id). \
+            options(contains_eager(Product.attribute), contains_eager(Product.vector))
+
+        result = await session.execute(q)
+
+        prod = result.scalars().unique().first()
+        select_attr = ['rating_imdb', 'rating_imdb_vote_count', 'rating_film_critics', 'rating_kinopoisk',
+                       'rating_kinopoisk_vote_count', 'year', 'rating_age_limit', 'film_length']
+
+        atrebutes = []
+        for attr in prod.attribute:
+            if attr.name in select_attr:
+                if attr.value != 'None':
+                    atrebutes.append(attr.value)
+                else:
+                    atrebutes.append(0)
+            if attr.name == 'genres':
+                gen = enc.transform([attr.value.split(' ')])[0]
+                atrebutes.append(np.array(gen))
+        res = [pickle.loads(prod.vector.vector)]
+        res += atrebutes
+        return res
+
+    @staticmethod
+    @Session
+    async def get_all_cat_data(session) -> dict:
+        enc = await asyncHandler.get_gen_enc()
+
+        otv = {}
+        q = select(Product). \
+            join(Attribute, Attribute.product_id == Product.id). \
+            join(Vector, Vector.id == Product.id). \
+            options(contains_eager(Product.attribute), contains_eager(Product.vector))
+
+        result = await session.execute(q)
+
+        prod = result.scalars().unique().all()
+        select_attr = ['rating_imdb', 'rating_imdb_vote_count', 'rating_film_critics', 'rating_kinopoisk',
+                       'rating_kinopoisk_vote_count', 'year', 'rating_age_limit', 'film_length']
+
+        for p in tqdm(prod):
+            atrebutes = ["0.0", "0", "0.0", "0.0", "0", "0", "0", "0"]
+            for attr in p.attribute:
+                if attr.name in select_attr and attr.value != 'None':
+                    atrebutes[select_attr.index(attr.name)] = attr.value
+                if attr.name == 'genres':
+                    gen = enc.transform([attr.value.split(' ')])[0]
+                    atrebutes.append(np.array(gen))
+            res = [pickle.loads(p.vector.vector)]
+            res += atrebutes
+            otv.update({p.id: res})
+        return otv
+
+    @staticmethod
+    @Session
+    async def get_cat_data_by_list_id(session, p_ids) -> list:
+        enc = await asyncHandler.get_gen_enc()
+        otv = []
+        for p_id in p_ids:
+            q = select(Product).filter(Product.id == p_id). \
+                join(Attribute, Attribute.product_id == Product.id). \
+                join(Vector, Vector.id == Product.id). \
+                options(contains_eager(Product.attribute), contains_eager(Product.vector))
+
+            result = await session.execute(q)
+
+            prod = result.scalars().unique().first()
+            select_attr = ['rating_imdb', 'rating_imdb_vote_count', 'rating_film_critics', 'rating_kinopoisk',
+                           'rating_kinopoisk_vote_count', 'year', 'rating_age_limits', 'film_length']
+
+            atrebutes = ["0.0", "0", "0.0", "0.0", "0", "0", "0", "0"]
+            for attr in prod.attribute:
+                if attr.name in select_attr and attr.value != 'None':
+                    atrebutes[select_attr.index(attr.name)] = attr.value
+                if attr.name == 'genres':
+                    gen = enc.transform([attr.value.split(' ')])[0]
+                    atrebutes.append(np.array(gen))
+            res = [pickle.loads(prod.vector.vector)]
+            res += atrebutes
+            otv.append(res)
+        return otv
 
     @staticmethod
     @Session
@@ -238,6 +347,18 @@ class asyncHandler:
 
     @staticmethod
     @Session
+    async def get_user_rate_id(session, user_id: int, rtype: bool) -> list:
+        q = select(Rate).filter(and_(Rate.user_id == user_id, Rate.rate == rtype))
+        query_vectors = await session.execute(q)
+        query_vectors = query_vectors.scalars().all()
+        ids = []
+        for i in query_vectors:
+            ids.append(i.product_id)
+
+        return ids
+
+    @staticmethod
+    @Session
     async def get_random_product(session) -> Product:
         result = await session.execute(select(Product))
         products = result.scalars().all()
@@ -269,15 +390,27 @@ class asyncHandler:
         else:
             return product.__dict__
 
+    # @staticmethod
+    # async def get_recommendation(user_id: int):
+    #     rated = []
+    #
+    #     vector_t = await asyncHandler.get_user_vectors(user_id, True, rated)
+    #     vector_f = await asyncHandler.get_user_vectors(user_id, False, rated)
+    #     clear_vectors = await asyncHandler.get_vectors_without(rated)
+    #
+    #     ids = await get_neareses_by_max_pooling(clear_vectors, vector_t, vector_f)
+    #     ret = []
+    #     for i in ids:
+    #         ret.append(await asyncHandler.get_product_by_id(i))
+    #     return ret
+
     @staticmethod
-    async def get_recommendation(user_id: int):
-        rated = []
-
-        vector_t = await asyncHandler.get_user_vectors(user_id, True, rated)
-        vector_f = await asyncHandler.get_user_vectors(user_id, False, rated)
-        clear_vectors = await asyncHandler.get_vectors_without(rated)
-
-        ids = await get_neareses_by_max_pooling(clear_vectors, vector_t, vector_f)
+    async def get_recommend_cat(user_id: int):
+        t_id = await asyncHandler.get_user_rate_id(user_id, True)
+        f_id = await asyncHandler.get_user_rate_id(user_id, False)
+        all_cat = await asyncHandler.get_all_cat_data()
+        print("data loaded")
+        ids = await get_cat_recommed(all_cat, t_id, f_id)
         ret = []
         for i in ids:
             ret.append(await asyncHandler.get_product_by_id(i))
@@ -300,5 +433,5 @@ if __name__ == "__main__":
     tracemalloc.start()
     asyncio.run(asyncHandler.init_db())
     print("done")
-    # asyncio.run(asyncHandler.clear_products_without_short_description())
-    # print("done")
+    vec_1 = asyncio.run(asyncHandler.get_cat_data_by_id(48))
+    vec_2 = asyncio.run(asyncHandler.get_vector_by_p_id(48))
