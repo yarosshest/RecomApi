@@ -24,3 +24,4 @@ navec~=0.10.0
 traitlets~=5.9.0
 catboost~=1.2
 protobuf==4.23.0
+omegaconf~=2.3.0

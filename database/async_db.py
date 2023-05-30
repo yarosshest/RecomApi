@@ -17,7 +17,9 @@ from random import choice
 from sklearn.preprocessing import MultiLabelBinarizer
 
 from database.recomindation_alg import get_cat_recommed
-from database.Db_objects import Product, Attribute, Distance, Base, BDCONNECTION, Vector, Rate, User, Lemma
+from database.Db_objects import Product, Attribute, Distance, Base, Vector, Rate, User, Lemma
+
+import database.config as config
 
 
 def async_to_tread(fun):
@@ -33,7 +35,7 @@ def async_to_tread(fun):
 def Session(fun):
     async def wrapper(*args):
         engine = create_async_engine(
-            BDCONNECTION,
+            config.bd_connection,
             echo=False,
             poolclass=NullPool,
         )
@@ -46,13 +48,11 @@ def Session(fun):
     return wrapper
 
 
-
-
 class asyncHandler:
     @staticmethod
-    async def init_db():
+    async def init_db() -> None:
         engine = create_async_engine(
-            BDCONNECTION,
+            config.bd_connection,
             echo=False,
             poolclass=NullPool,
         )
@@ -405,9 +405,13 @@ class asyncHandler:
     #     return ret
 
     @staticmethod
-    async def get_recommend_cat(user_id: int):
+    async def get_recommend_cat(user_id: int) -> list[dict] | str:
         t_id = await asyncHandler.get_user_rate_id(user_id, True)
         f_id = await asyncHandler.get_user_rate_id(user_id, False)
+        if len(t_id) < 2:
+            return 'less 2 positive rates'
+        if len(f_id) < 2:
+            return 'less 2 negative rates'
         all_cat = await asyncHandler.get_all_cat_data()
         print("data loaded")
         ids = await get_cat_recommed(all_cat, t_id, f_id)
@@ -432,6 +436,3 @@ class asyncHandler:
 if __name__ == "__main__":
     tracemalloc.start()
     asyncio.run(asyncHandler.init_db())
-    print("done")
-    vec_1 = asyncio.run(asyncHandler.get_cat_data_by_id(48))
-    vec_2 = asyncio.run(asyncHandler.get_vector_by_p_id(48))

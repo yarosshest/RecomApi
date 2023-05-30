@@ -3,12 +3,12 @@ import emoji
 from telebot import TeleBot
 from telebot import types
 import re
-
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
-
 from database.async_db import asyncHandler
+from database.db_init import db_init
+from database.config import TELEGRAMM
 
-bot = TeleBot('6269654129:AAHAw3qqV6dJsEB5woAqaKlMzceOUxUikOo')
+bot = TeleBot(TELEGRAMM)
 
 
 def split_list(lst: list, n: int):
@@ -108,5 +108,11 @@ def handle_query(call: types.CallbackQuery):
             bot.send_message(call.message.chat.id, "Спасибо за оценку")
 
 
-if __name__ == "__main__":
+def bot_main():
+    db_init()
+    print("bot start")
     bot.infinity_polling()
+
+
+if __name__ == "__main__":
+    bot_main()

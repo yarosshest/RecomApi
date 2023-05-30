@@ -1,0 +1,17 @@
+version: "3.9"
+services:
+  bot:
+    build:
+      dockerfile: "./Dockerfiles/Bot_Dockerfile.yml"
+#    restart: always
+  postgres:
+    image: postgres
+    environment:
+      POSTGRES_DB: "recomapi_as"
+      POSTGRES_USER: "postgres"
+      POSTGRES_PASSWORD: "postgres"
+    build:
+      context: './'
+      dockerfile: "./Dockerfiles/Db_Dockerfile.yml"
+    ports:
+      - "60105:5432"
