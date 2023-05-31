@@ -6,8 +6,7 @@ from database.async_db import asyncHandler
 from multiprocessing import Pool
 from sentence_transformers import SentenceTransformer
 from database.NLP.lemmatization import lemmatize_many
-from nltk import download
-from nltk.corpus import stopwords
+import database.config as config
 
 
 async def calc_distance(distances: list, id_f, id_s: int, vec_f, vec_s: np.array) -> None:
@@ -26,10 +25,11 @@ async def get_data():
     return [ids, des]
 
 
-def embed(input):
+async def embed(input):
     mod = 'uaritm/multilingual_en_ru_uk'
     model = SentenceTransformer(mod)
-    return model.encode(input, show_progress_bar=False)
+    out = model.encode(input, show_progress_bar=True)
+    return out
 
 
 async def calc_dist():
@@ -61,16 +61,20 @@ async def calc_vectors():
     print("lemmatization")
     des = lemmatize_many(dt[1])
     lemmas = []
-    async for i in trange(len(ids)):
+    for i in range(len(ids)):
         lemmas.append([ids[i], des[i]])
     await asyncHandler.add_some_lemma(lemmas)
     print("processing descriptions start")
-    vec = embed(des)
+    config.parsing = False
+    vec = await embed(des)
     print("processing descriptions end")
     vectors = []
-    async for i in trange(len(ids)):
+    for i in range(len(ids)):
         vectors.append([ids[i], vec[i]])
+
+    print("add in dp")
     await asyncHandler.add_some_vectors(vectors)
+    print("vectorization end")
 
 
 if __name__ == "__main__":
