@@ -1,0 +1,8 @@
+FROM python:latest
+WORKDIR /bot
+RUN pip install --upgrade pip
+ADD requirements.txt requirements.txt
+RUN pip install -r requirements.txt
+COPY /database /bot/database
+COPY /debug_bot /bot/debug_bot
+CMD ["python", "-m", "debug_bot.debug_telegram_bot"]

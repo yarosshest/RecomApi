@@ -33,8 +33,12 @@ async def parse_data(dt):
     await asyncHandler.add_some_products(objects)
 
 
-if __name__ == '__main__':
-    tracemalloc.start()
-    f = open('KinopoiskDumb.json', encoding='utf-8')
+def start(file: str):
+    f = open(file, encoding='utf-8')
     data = json.load(f)
     asyncio.run(parse_data(data))
+
+
+if __name__ == '__main__':
+    tracemalloc.start()
+    start('KinopoiskDumb.json')

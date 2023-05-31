@@ -111,8 +111,8 @@ async def get_cat_recommed(cat_all: dict, t_id: list, f_id: list) -> list:
     X_train, X_test, y_train, y_test = train_test_split(x, y, test_size=0.2)
 
     cat = CatBoostClassifier(
-        thread_count=8,
-        iterations=50,
+        thread_count=10,
+        iterations=25,
         learning_rate=0.1,
     )
 
@@ -129,7 +129,7 @@ async def get_cat_recommed(cat_all: dict, t_id: list, f_id: list) -> list:
         all_ids.remove(i)
 
     all_X = [cat_all[i] for i in all_ids]
-    all_y = [cat.predict_proba(all_X[i]) for i in range(len(all_X))]
+    all_y = cat.predict_proba(all_X)
     classes = cat.predict(all_X)
 
     proba = {}

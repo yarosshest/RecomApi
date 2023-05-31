@@ -1,6 +1,5 @@
 from nltk import download
 from nltk.corpus import stopwords
-from navec import Navec
 from pymystem3 import Mystem
 
 
