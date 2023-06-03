@@ -6,7 +6,6 @@ from database.async_db import asyncHandler
 from multiprocessing import Pool
 from sentence_transformers import SentenceTransformer
 from database.NLP.lemmatization import lemmatize_many
-import database.config as config
 
 
 async def calc_distance(distances: list, id_f, id_s: int, vec_f, vec_s: np.array) -> None:
@@ -65,7 +64,6 @@ async def calc_vectors():
         lemmas.append([ids[i], des[i]])
     await asyncHandler.add_some_lemma(lemmas)
     print("processing descriptions start")
-    config.parsing = False
     vec = await embed(des)
     print("processing descriptions end")
     vectors = []
