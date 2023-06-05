@@ -13,7 +13,9 @@ def db_init():
     loop = get_event_loop()
     loop.run_until_complete(db.init_db())
 
-    if config['DEFAULT']['PARSING']:
+    par = config['DEFAULT']['PARSING'] == 'True'
+
+    if par:
         print("parsing start")
         p = pathlib.Path(__file__).parent.joinpath('parsing').joinpath(str(config['DEFAULT']["DATAJSON"]))
         start(p)
