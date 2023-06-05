@@ -164,6 +164,7 @@ async def get_recommendations(user_id: int | None = Cookie(default=None)):
 def api_main():
     db_init()
     uvicorn.run(app, host="0.0.0.0", port=8031)
+    # uvicorn.run('api.api.main:app', host="0.0.0.0", port=8031, workers=4)
 
 
 if __name__ == "__main__":

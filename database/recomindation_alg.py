@@ -139,6 +139,6 @@ async def get_cat_recommed(cat_all: dict, t_id: list, f_id: list) -> list:
 
     it = proba.items()
 
-    sort = sorted(it, key=lambda x: x[1][1], reverse=True)[:5]
+    sort = sorted(it, key=lambda x: x[1][1], reverse=True)[:20]
 
     return [i[0] for i in sort]
