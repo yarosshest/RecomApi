@@ -2,12 +2,12 @@ from __future__ import annotations
 import tracemalloc
 import asyncio
 import pickle
-
+import contextlib
 import numpy as np
 import pandas as pd
-from sqlalchemy import ForeignKey, or_, and_, NullPool, PickleType, delete
+from sqlalchemy import ForeignKey, or_, and_, NullPool, PickleType, delete, MetaData
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import async_sessionmaker
+from sqlalchemy.ext.asyncio import async_sessionmaker, AsyncSession
 from sqlalchemy.ext.asyncio import create_async_engine
 from sqlalchemy import and_
 from sqlalchemy.orm import selectinload, joinedload, contains_eager
@@ -21,12 +21,17 @@ from database.Db_objects import Product, Attribute, Distance, Base, Vector, Rate
 
 import configparser
 import pathlib
+meta = MetaData()
 
 p = pathlib.Path(__file__).parent.parent.joinpath('config.ini')
 
 config = configparser.ConfigParser()
 config.read(p)
-BDCONNECTION = config['DEFAULT']["BDCONNECTION"]
+test = config['TEST']['testing'] == 'True'
+if test:
+    BDCONNECTION = config['TEST']["BDCONNECTION"]
+else:
+    BDCONNECTION = config['DEFAULT']["BDCONNECTION"]
 pass
 
 
@@ -127,6 +132,18 @@ class asyncHandler:
         for i in vectors:
             res[0].append(i.id)
             res[1].append(pickle.loads(i.vector))
+
+        return res
+
+    @staticmethod
+    @Session
+    async def get_all_films(session):
+        result = await session.execute(select(Product))
+        products = result.scalars().all()
+        res = []
+
+        for i in products:
+            res.append(i)
 
         return res
 
@@ -439,6 +456,18 @@ class asyncHandler:
 
         # for i in tqdm(products):
         #         await session.delete(i)
+
+    @staticmethod
+    async def drop_all() -> None:
+        engine = create_async_engine(
+            BDCONNECTION,
+            echo=False,
+            poolclass=NullPool,
+        )
+
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.drop_all)
+
 
 
 if __name__ == "__main__":

@@ -37,6 +37,7 @@ def start(file: str):
     f = open(file, encoding='utf-8')
     data = json.load(f)
     asyncio.run(parse_data(data))
+    f.close()
 
 
 if __name__ == '__main__':
