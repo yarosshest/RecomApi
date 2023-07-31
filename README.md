@@ -3,7 +3,7 @@
 
 ## Запуск
 
-- [api-compose.yml](api-compose.yml) - для запуска api
+- [api-compose.yml](docker-compose.yml) - для запуска api
 - [bot-compose.yml](bot-compose.yml) - для запуска телеграмм бота
 
 ВНИМАНИЕ! При запуске контейнера происходит скачивание зависимостей, а их на 10GB,
@@ -108,7 +108,7 @@ api будет доступно по адресу: http://localhost:60106
 ### Docker
 
 Для запуска проекта в docker контейнере, были написаны два Docker-compose файла:
-- [api-compose.yml](api-compose.yml) - для запуска api
+- [api-compose.yml](docker-compose.yml) - для запуска api
 - [bot-compose.yml](bot-compose.yml) - для запуска телеграмм бота
 
 В них происходит запуск контейнера с базой данных, а так же контейнера с api или ботом.
