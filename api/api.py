@@ -5,6 +5,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel
 from database.db_init import db_init
 from fastapi.security import OAuth2PasswordBearer
+import requests
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 app = FastAPI()
@@ -151,14 +152,7 @@ async def get_recommendations(user_id: int | None = Cookie(default=None)):
     if user_id is None:
         return JSONResponse(status_code=404, content={"message": "Need to login"})
     else:
-        products = await DB.get_recommend_cat(user_id)
-
-        if products == 'less 2 positive rates':
-            return JSONResponse(status_code=405, content={"message": "less 2 positive rates"})
-        elif products == 'less 2 negative rates':
-            return JSONResponse(status_code=406, content={"message": "less 2 negative rates"})
-        else:
-            return products
+        return requests.get("http://localhost:8032/", {"user_id": user_id}).json()
 
 
 def api_main():

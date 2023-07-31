@@ -4,8 +4,15 @@ services:
     build:
       dockerfile: "./Dockerfiles/Api_Dockerfile.yml"
     ports:
-      - "60106:8031"
+      - "60111:8031"
 #    restart: always
+
+  recomServise:
+    build:
+      dockerfile: "./Dockerfiles/RecomServise_Dockerfile.yml"
+    ports:
+      - "60112:8032"
+
   postgres:
     image: postgres
     environment:
@@ -16,4 +23,4 @@ services:
       context: './'
       dockerfile: "./Dockerfiles/Db_Dockerfile.yml"
     ports:
-      - "60105:5432"
+      - "60119:5432"
