@@ -3,6 +3,7 @@ WORKDIR /api
 RUN pip install --upgrade pip
 ADD requirements.txt requirements.txt
 RUN pip install -r requirements.txt
+COPY config.ini /api
 COPY /database /api/database
 COPY /api /api/api
 CMD ["python", "-m", "api.api"]

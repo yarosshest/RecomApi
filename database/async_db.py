@@ -27,6 +27,7 @@ p = pathlib.Path(__file__).parent.parent.joinpath('config.ini')
 
 config = configparser.ConfigParser()
 config.read(p)
+print(config.items())
 test = config['TEST']['testing'] == 'True'
 if test:
     BDCONNECTION = config['TEST']["BDCONNECTION"]
